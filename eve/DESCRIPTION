@@ -2,11 +2,13 @@ Package: eve
 Type: Package
 Title: eve: Error variance estimation.
 Version: 1.0
-Date: 19/03/2012
+Date: 14/07/2014
 Author: Daniel Murrell <dsmurrell@gmail.com>
 Maintainer: Daniel Murrell <dsmurrell@gmail.com>
-Depends: R (>= 2.12.0), caret, multicore
+Depends:
+    R (>= 2.12.0),
+    caret,
+    multicore
 Description: Estimates the error in new predictions given a model with CV errors
 License: GPL
 LazyLoad: yes
-

@@ -160,7 +160,19 @@ GetSigmasFromSplines <- function(i, m, sl) {
   predict(sl[[i]]$ise.spline, indexes)$y
 }
 
-# some measure of the correlation between two variables
+#' confidence–error correlation is a measure of the performance of the error estimates against the absolute errors
+#' 
+#' CEC uses the Pearson's correlation between the sigma estimates of the assumed normal error distributions 
+#' and the absolute errors. This is normalised by the perfect confidence estimator
+#' defined as the Pearson's correlation between the sorted sigmas and the sorted absolute errors.
+#' CEC = cor(sigmas, |errors|) / cor(sort(sigmas), sort(|errors|))
+#' 
+#' @param x the first variable
+#' @param y the second variable
+#' @export
+#' @return the CEC value
+#' @references \url{http://dx.doi.org/10.1371/journal.pone.0048723}
+#' @author Daniel Murrell <dsmurrell@@gmail.com>
 CEC <- function(x, y) {
   if(sum(x)==0) return(0)
   cor(x,y)/cor(sort(x), sort(y))
@@ -195,11 +207,29 @@ GetWeights <- function(m, errors, sl, cores = 1, optFunc = CEC) {
   sigma.matrix <- do.call(cbind, mclapply(1:ncol(m), GetSigmasFromSplines, m, sl, mc.cores=cores))
   l <- GreedOpt(sigma.matrix, errors, optFunc, iter=50)
   weights <- l$weights
-  plot(l$bests)
+  #plot(l$bests)
   weights/sum(weights)
 }  
 
-# builds an error variance estimator using training set, fold indexes, observed values and CV predictions
+#' Builds an error variance estimator using training set, fold indexes, observed values and CV predictions
+#' 
+#' An error variance estimator is built using the training set, the fold indexes used during training, 
+#' the observed values of the training set and the cross-validation predictions during training. 
+#' If the cross-validation predictions are kept during training, this should allow \code{eve} to
+#' be backwards compatible to any trained model. The estimator can be applied to make error estimates for
+#' new data points using the PredictSigmas function.
+#' 
+#' @param x the training set
+#' @param folds the folds used in cross validation
+#' @param obs the observed values
+#' @param the crossvalidated predicitions
+#' @param Nmax the maximum number of neighbours to consider
+#' @param cores the number of cores to utilise during estimator building
+#' @param the optimisation function used to score the correlation
+#' @export
+#' @return a trained error variance estimator
+#' @author Daniel Murrell <dsmurrell@@gmail.com>
+#' 
 BuildEVEstimator <- function(x, folds, obs, preds, Nmax = 20, cores = 1, optFunc = CEC) {
   errors <- preds - obs
   dms <- CreateDistanceMatricesMC(x, folds, cores)
@@ -209,7 +239,22 @@ BuildEVEstimator <- function(x, folds, obs, preds, Nmax = 20, cores = 1, optFunc
   list(x = x, sl = sl, weights = weights, obs = obs, preds = preds, errors = errors, Nmax = Nmax)
 }
 
-# builds an error variance estimator using a caret model as input (caret model must have saved CV predictions)
+#' Builds an error variance estimator using a caret model as input (caret model must have saved CV predictions)
+#' 
+#' An error variance estimator is built using a caret model that was trained using cross-validation.
+#' The \code{savePredictions} argument to the \code{trainControl} function needs to be set to TRUE
+#' so that caret saves the cross-validation predictions during model training.
+#' The estimator can be applied to make error estimates for
+#' new data points using the PredictSigmas function.
+#' 
+#' @param x the training set
+#' @param the trained caret model (must have saved CV predictions)
+#' @param Nmax the maximum number of neighbours to consider
+#' @param cores the number of cores to utilise during estimator building
+#' @param the optimisation function used to score the correlation
+#' @export
+#' @return a trained error variance estimator
+#' @author Daniel Murrell <dsmurrell@@gmail.com>
 BuildCaretEVEstimator <- function(x, model, Nmax = 20, cores=1, optFunc = CEC) {
   indexes <- which(apply(as.data.frame(model$pred[,names(model$bestTune)]), 1, function(x,y) {identical(as.numeric(x), as.numeric(y))}, model$bestTune))
   best <- model$pred[indexes,]
@@ -295,6 +340,20 @@ GetNewSigmas <- function(sigma.matrix, weights) {
   apply(sweep(sigma.matrix,2,weights,`*`), 1, sum)
 }
 
+#' Predict the error variance of new data points given the dataset and a trained estimator
+#' 
+#' Given new datapoints, \code{PredictSigmas} used a trained error variance estimator to predict the
+#' sigmas of the error distribution for those datapoints. It is important that the descriptors are 
+#' transformed in exactly the same way as the descriptors were transformed before model training.
+#' 
+#' @param x the descriptors of the new datapoints transformed in exactly the same way as they were during training
+#' @param the trained caret model (must have saved CV predictions)
+#' @param Nmax the maximum number of neighbours to consider
+#' @param cores the number of cores to utilise during estimator building
+#' @param the optimisation function used to score the correlation
+#' @export
+#' @return the predicted error variances for the new data points
+#' @author Daniel Murrell <dsmurrell@@gmail.com>
 PredictSigmas <- function(x, estimator) {
   dm <- CreateNewDistanceMatrix(estimator$x, x)
   nm <- CreateNewEstimatorMatrix(estimator$Nmax, dm, estimator$errors, estimator$obs, estimator$preds)
