@@ -21,7 +21,7 @@ CreateKernelDistanceFold <- function(fold, x.train, folds) {
   dm <- matrix(NA, nrow=nrow(ref), ncol=nrow(out))
   for(i in 1:nrow(out)) {
     y <- as.vector(out[i,], mode="numeric")
-    y[is.na(y)] <- 0
+    y[is.na(y)] <- 0 
     dm[,i] <- 1-apply(ref, 1, k, y)
   }
   dm
@@ -160,18 +160,19 @@ GetSigmasFromSplines <- function(i, m, sl) {
   predict(sl[[i]]$ise.spline, indexes)$y
 }
 
-#' confidence–error correlation is a measure of the performance of the error estimates against the absolute errors
+#' Confidence–error correlation is a measure of the performance of the error estimates against the absolute errors
 #' 
 #' CEC uses the Pearson's correlation between the sigma estimates of the assumed normal error distributions 
 #' and the absolute errors. This is normalised by the perfect confidence estimator
 #' defined as the Pearson's correlation between the sorted sigmas and the sorted absolute errors.
 #' CEC = cor(sigmas, |errors|) / cor(sort(sigmas), sort(|errors|))
 #' 
-#' @param x the first variable
-#' @param y the second variable
+#' @param x First variable
+#' @param y Second variable
 #' @export
-#' @return the CEC value
-#' @references \url{http://dx.doi.org/10.1371/journal.pone.0048723}
+#' @return CEC value
+#' @references No Longer Confidential: Estimating the Confidence of Individual Regression Predictions:  
+#' \url{http://dx.doi.org/10.1371/journal.pone.0048723}
 #' @author Daniel Murrell <dsmurrell@@gmail.com>
 CEC <- function(x, y) {
   if(sum(x)==0) return(0)
@@ -219,17 +220,16 @@ GetWeights <- function(m, errors, sl, cores = 1, optFunc = CEC) {
 #' be backwards compatible to any trained model. The estimator can be applied to make error estimates for
 #' new data points using the PredictSigmas function.
 #' 
-#' @param x the training set
-#' @param folds the folds used in cross validation
-#' @param obs the observed values
-#' @param the crossvalidated predicitions
-#' @param Nmax the maximum number of neighbours to consider
-#' @param cores the number of cores to utilise during estimator building
-#' @param the optimisation function used to score the correlation
+#' @param x Training set
+#' @param folds Folds used in cross validation
+#' @param obs Observed values
+#' @param preds Crossvalidated predicitions
+#' @param Nmax Maximum number of neighbours to consider
+#' @param cores Number of cores to utilise during estimator building
+#' @param optFunc Optimisation function used to score the correlation
 #' @export
-#' @return a trained error variance estimator
+#' @return Trained error variance estimator
 #' @author Daniel Murrell <dsmurrell@@gmail.com>
-#' 
 BuildEVEstimator <- function(x, folds, obs, preds, Nmax = 20, cores = 1, optFunc = CEC) {
   errors <- preds - obs
   dms <- CreateDistanceMatricesMC(x, folds, cores)
@@ -247,13 +247,13 @@ BuildEVEstimator <- function(x, folds, obs, preds, Nmax = 20, cores = 1, optFunc
 #' The estimator can be applied to make error estimates for
 #' new data points using the PredictSigmas function.
 #' 
-#' @param x the training set
-#' @param the trained caret model (must have saved CV predictions)
-#' @param Nmax the maximum number of neighbours to consider
-#' @param cores the number of cores to utilise during estimator building
-#' @param the optimisation function used to score the correlation
+#' @param x Training set
+#' @param model Trained caret model (must have saved CV predictions)
+#' @param Nmax Maximum number of neighbours to consider
+#' @param cores Number of cores to utilise during estimator building
+#' @param optFunc Optimisation function used to score the correlation
 #' @export
-#' @return a trained error variance estimator
+#' @return Trained error variance estimator
 #' @author Daniel Murrell <dsmurrell@@gmail.com>
 BuildCaretEVEstimator <- function(x, model, Nmax = 20, cores=1, optFunc = CEC) {
   indexes <- which(apply(as.data.frame(model$pred[,names(model$bestTune)]), 1, function(x,y) {identical(as.numeric(x), as.numeric(y))}, model$bestTune))
@@ -346,13 +346,10 @@ GetNewSigmas <- function(sigma.matrix, weights) {
 #' sigmas of the error distribution for those datapoints. It is important that the descriptors are 
 #' transformed in exactly the same way as the descriptors were transformed before model training.
 #' 
-#' @param x the descriptors of the new datapoints transformed in exactly the same way as they were during training
-#' @param the trained caret model (must have saved CV predictions)
-#' @param Nmax the maximum number of neighbours to consider
-#' @param cores the number of cores to utilise during estimator building
-#' @param the optimisation function used to score the correlation
+#' @param x Descriptors of the new datapoints transformed in exactly the same way as they were during training
+#' @param estimator Trained estimator returned by either \code{\link{BuildEVEstimator}} or \code{\link{BuildCaretEVEstimator}}
 #' @export
-#' @return the predicted error variances for the new data points
+#' @return Predicted error variances for the new data points
 #' @author Daniel Murrell <dsmurrell@@gmail.com>
 PredictSigmas <- function(x, estimator) {
   dm <- CreateNewDistanceMatrix(estimator$x, x)
