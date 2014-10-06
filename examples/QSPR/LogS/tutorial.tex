@@ -1,0 +1,442 @@
+\documentclass[twoside,a4wide,12pt]{article}\usepackage[]{graphicx}\usepackage[]{color}
+%% maxwidth is the original width if it is less than linewidth
+%% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+\newcommand{\hlnum}[1]{\textcolor[rgb]{0.686,0.059,0.569}{#1}}%
+\newcommand{\hlstr}[1]{\textcolor[rgb]{0.192,0.494,0.8}{#1}}%
+\newcommand{\hlcom}[1]{\textcolor[rgb]{0.678,0.584,0.686}{\textit{#1}}}%
+\newcommand{\hlopt}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlstd}[1]{\textcolor[rgb]{0.345,0.345,0.345}{#1}}%
+\newcommand{\hlkwa}[1]{\textcolor[rgb]{0.161,0.373,0.58}{\textbf{#1}}}%
+\newcommand{\hlkwb}[1]{\textcolor[rgb]{0.69,0.353,0.396}{#1}}%
+\newcommand{\hlkwc}[1]{\textcolor[rgb]{0.333,0.667,0.333}{#1}}%
+\newcommand{\hlkwd}[1]{\textcolor[rgb]{0.737,0.353,0.396}{\textbf{#1}}}%
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+\usepackage[left=2.5cm,top=2cm,right=2cm,bottom=2.5cm,bindingoffset=0.5cm]{geometry}
+\usepackage{amsmath} 
+\usepackage[affil-it]{authblk}
+\usepackage{hyperref}
+\usepackage{fullpage}
+\usepackage{pdflscape}
+\usepackage[backend=bibtex,sorting=none,style=ieee]{biblatex}
+\usepackage{setspace}
+\usepackage{inconsolata}
+\bibliography{biblio}
+
+
+\title{Error variance estimation with 'eve'\\
+{\bf E}rror {\bf V}ariance {\bf E}stimator\\
+}
+
+\author[1]{\rm Daniel S. Murrell\thanks{dsmurrell@gmail.com}}
+\affil[1]{Unilever Centre for Molecular Science Informatics, Department of Chemistry, University of Cambridge, Cambridge, United Kingdom.}
+\setlength{\parindent}{0pt}
+
+\setlength{\parskip}{\baselineskip}%
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+
+\maketitle
+\onehalfspacing
+
+
+
+\maketitle
+
+In the following sections, we demonstrate the utility of the \texttt{eve} \cite{eve} package by presenting a pipeline which trains a support vector machine to predict aqueous solubility using 2D molecular descriptors calculated by the PaDEL-Descriptor package. \texttt{eve} is then used to train an error variance model to predict the variance in the errors of new molecules.
+
+Firstly, the package is loaded and the working directory set:
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlkwd{library}\hlstd{(camb)}
+\hlkwd{library}\hlstd{(eve)}
+\hlcom{# setwd('path_to_working_directory')}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+\section{Compounds}
+
+\subsection{Reading and Preprocessing}
+The compounds are read in and standardised. Internally, Indigo's C API \cite{Indigo}, incorporated into the \texttt{camb} package, is use to perform this task.
+Molecules are represented with implicit hydrogens, dearomatized, and passed through the InChI format to ensure that tautomers are represented by the same SMILES.
+
+The \texttt{StandardiseMolecules} function allows representation of the molecular structures in a similarly processed form.
+The arguments of this function allow control over the maximum number of (i) fluorines, (ii) chlorines,
+(iii) bromines, and (iv) iodines the molecules can contain in order to be retained for training.
+Inorgnaic molecules (those containing atoms not in \{H, C, N, O, P, S, F, Cl, Br, I\}) are removed if the argument \texttt{remove.inorganic} is set to \texttt{TRUE}. This is the function's default behaviour.
+The upper and lower limits for molecular mass can be set with the arguments \texttt{min.mass.limit} and \texttt{max.mass.limit}.
+The name of the file containing the chemical structures is provided by the argument \texttt{structures.file}.
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{std.options} \hlkwb{<-} \hlkwd{StandardiseMolecules}\hlstd{(}\hlkwc{structures.file}\hlstd{=}\hlstr{"solubility_2007_ref2.sdf"}\hlstd{,}
+                                                \hlkwc{standardised.file}\hlstd{=}\hlstr{"standardised.sdf"}\hlstd{,}
+                                                \hlkwc{removed.file}\hlstd{=}\hlstr{"removed.sdf"}\hlstd{,}
+                                                \hlkwc{properties.file} \hlstd{=} \hlstr{"properties.csv"}\hlstd{,}
+                                                \hlkwc{remove.inorganic}\hlstd{=}\hlnum{TRUE}\hlstd{,}
+                                                \hlkwc{fluorine.limit}\hlstd{=}\hlnum{3}\hlstd{,}
+                                                \hlkwc{chlorine.limit}\hlstd{=}\hlnum{3}\hlstd{,}
+                                                \hlkwc{bromine.limit}\hlstd{=}\hlnum{3}\hlstd{,}
+                                                \hlkwc{iodine.limit}\hlstd{=}\hlnum{3}\hlstd{,}
+                                                \hlkwc{min.mass.limit}\hlstd{=}\hlnum{20}\hlstd{,}
+                                                \hlkwc{max.mass.limit}\hlstd{=}\hlnum{900}\hlstd{)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+Molecules that Indigo manages to parse and that pass the filters are written to the file indicated by the \texttt{standardised.file} argument once they have been through the standardisation procedure. Molecules that were discarded are written to the file indicated by the \texttt{removed.file} argument. The molecule name and molecular properties specified in the structure file are written to the file indicated in the argument \texttt{properties.file} which is in CSV format. A column \texttt{kept} is added which indicates which molecules were deleted (0) or kept (1).
+
+\section{Target Visualisation}
+\texttt{camb} provides a function to visualise the density of the target variable. Visualising the distribution of the target variable gives can give a measure of how accurate a trained model is. The narrower the distribution the lower the RMSE should for the model to exhibit predictive power.
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{properties} \hlkwb{<-} \hlkwd{read.table}\hlstd{(}\hlstr{"properties.csv"}\hlstd{,} \hlkwc{header}\hlstd{=}\hlnum{TRUE}\hlstd{,} \hlkwc{sep}\hlstd{=}\hlstr{"\textbackslash{}t"}\hlstd{)}
+\hlstd{properties} \hlkwb{<-} \hlstd{properties[properties}\hlopt{$}\hlstd{Kept}\hlopt{==}\hlnum{1}\hlstd{, ]}
+\hlkwd{head}\hlstd{(properties)}
+\hlstd{targets} \hlkwb{<-} \hlkwd{data.frame}\hlstd{(}\hlkwc{Name} \hlstd{= properties}\hlopt{$}\hlstd{NAME,} \hlkwc{target} \hlstd{= properties}\hlopt{$}\hlstd{EXPT)}
+\hlstd{p} \hlkwb{<-} \hlkwd{DensityResponse}\hlstd{(targets}\hlopt{$}\hlstd{target)} \hlopt{+} \hlkwd{xlab}\hlstd{(}\hlstr{"LogS Target Distribution"}\hlstd{)}
+\hlstd{p}
+\end{alltt}
+\end{kframe}\begin{figure}[]
+
+
+{\centering \includegraphics[width=8cm]{figure/unnamed-chunk-5} 
+
+}
+
+\caption[LogS Target Distribution]{LogS Target Distribution\label{fig:unnamed-chunk-5}}
+\end{figure}
+
+
+\end{knitrout}
+
+\subsection{PaDEL Descriptors}
+One and two-dimensional descriptors can be calculated with the function \texttt{GeneratePadelDescriptors} provided by the PaDEL-Descriptor \cite{padel} Java library built into the \texttt{camb} package:
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{descriptor.types} \hlkwb{<-} \hlkwd{c}\hlstd{(}\hlstr{"2D"}\hlstd{)}
+\hlstd{descriptors} \hlkwb{<-} \hlkwd{GeneratePadelDescriptors}\hlstd{(}\hlkwc{standardised.file} \hlstd{=} \hlstr{"standardised.sdf"}\hlstd{,}
+    \hlkwc{types} \hlstd{= descriptor.types,} \hlkwc{threads} \hlstd{=} \hlnum{1}\hlstd{)}
+\hlstd{descriptors} \hlkwb{<-} \hlkwd{RemoveStandardisedPrefix}\hlstd{(descriptors)}
+\hlkwd{saveRDS}\hlstd{(descriptors,} \hlkwc{file} \hlstd{=} \hlstr{"descriptors.rds"}\hlstd{)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+
+\section{Statistical Pre-processing}
+The descriptors and the target values are then merged by name into a single \textit{data.frame}. We check that the number of rows of the merged and original \textit{data.frames} are the same. We then split the \textit{data.frame} into \textit{ids}, \textit{x} and \textit{y} where \textit{ids} are the molecule names, \textit{x} is the block of descriptor values and \textit{y} is the target values.  
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{all} \hlkwb{<-} \hlkwd{merge}\hlstd{(}\hlkwc{x} \hlstd{= targets,} \hlkwc{y} \hlstd{= descriptors,} \hlkwc{by} \hlstd{=} \hlstr{"Name"}\hlstd{)}
+\hlstd{ids} \hlkwb{<-} \hlstd{all}\hlopt{$}\hlstd{Name}
+\hlstd{x} \hlkwb{<-} \hlstd{all[}\hlnum{3}\hlopt{:}\hlkwd{ncol}\hlstd{(all)]}
+\hlstd{y} \hlkwb{<-} \hlstd{all}\hlopt{$}\hlstd{target}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+Sometimes, some descriptors are not calculated for all molecules, giving a "NA" or "Inf" as the descriptor value. 
+Instead of removing that descriptor for all molecules, the missing descriptor values can be imputed from the corresponding descriptor values in the molecules that are closest to the molecule with the missing information.
+"Inf" descriptor values are first converted to "NA".
+For the imputation of missing descriptor values, the R package  \texttt{impute} is required.
+Depending on the R version, it can be accessed from either \texttt{CRAN} or \texttt{Bioconductor}.
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+
+
+{\ttfamily\noindent\itshape\color{messagecolor}{\#\# Loading required package: impute}}\begin{verbatim}
+## Cluster size 1606 broken into 375 1231 
+## Done cluster 375 
+## Done cluster 1231
+\end{verbatim}
+\end{kframe}
+\end{knitrout}
+
+The dataset is randomly split into a training set (80\%) used for training and a holdout set (20\%) which used to assess the predictive ability of the models on molecules drawn from the same distribution as the training set. Unhelpful descriptos are removed: (i) those with a variance close to zero (near-zero variance), and (ii) those highly correlated with one another:
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{dataset} \hlkwb{<-} \hlkwd{SplitSet}\hlstd{(ids, x.imputed, y,} \hlkwc{percentage} \hlstd{=} \hlnum{20}\hlstd{)}
+\hlstd{dataset} \hlkwb{<-} \hlkwd{RemoveNearZeroVarianceFeatures}\hlstd{(dataset,}
+    \hlkwc{frequencyCutoff} \hlstd{=} \hlnum{30}\hlstd{)}
+\end{alltt}
+
+
+{\ttfamily\noindent\itshape\color{messagecolor}{\#\# 397 features removed with variance below cutoff}}\begin{alltt}
+\hlstd{dataset} \hlkwb{<-} \hlkwd{RemoveHighlyCorrelatedFeatures}\hlstd{(dataset,}
+    \hlkwc{correlationCutoff} \hlstd{=} \hlnum{0.95}\hlstd{)}
+\end{alltt}
+
+
+{\ttfamily\noindent\itshape\color{messagecolor}{\#\# 121 features removed with correlation above cutoff}}\end{kframe}
+\end{knitrout}
+
+The descriptors are converted to z-scores by centering them to have a mean of zero and scaling them to have unit variance:
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{dataset} \hlkwb{<-} \hlkwd{PreProcess}\hlstd{(dataset)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+Five fold cross-validation (CV) is be used to optimize the hyperparameters of the support vector machine:
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{dataset} \hlkwb{<-} \hlkwd{GetCVTrainControl}\hlstd{(dataset,} \hlkwc{folds} \hlstd{=} \hlnum{5}\hlstd{,} \hlkwc{savePredictions} \hlstd{=} \hlnum{TRUE}\hlstd{)}
+\hlkwd{saveRDS}\hlstd{(dataset,} \hlkwc{file} \hlstd{=} \hlstr{"dataset_logS_preprocessed.rds"}\hlstd{)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+\section{Model Training}
+
+In the following section we present the different steps required to train a QSPR model with \texttt{camb}. It should be noted that the above steps can be run locally on a low powered computer such as a laptop and the preprocessed dataset saved to disk. This dataset can then be copied to a high powered machine or a farm with multiple cores for model training and the resulting models saved back to the local machine. Pro tip: Dropbox can be used to sync this proceedure so that manual transfer is not required.
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{dataset} \hlkwb{<-} \hlkwd{readRDS}\hlstd{(}\hlstr{"dataset_logS_preprocessed.rds"}\hlstd{)}
+\hlcom{# register the number of cores to use in training}
+\hlkwd{registerDoMC}\hlstd{(}\hlkwc{cores} \hlstd{=} \hlnum{1}\hlstd{)}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+\subsection{Support Vector Machines (SVM)}
+A SVM using a radial basis function kernel is trained \cite{svmreview}.
+A base 2 exponential grid is used to optimize over the hyperparameters. The \texttt{train} function from the \texttt{caret} package is used directly for model training.
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlkwd{library}\hlstd{(kernlab)}
+\hlstd{method} \hlkwb{<-} \hlstr{"svmRadial"}
+\hlstd{tune.grid} \hlkwb{<-} \hlkwd{expand.grid}\hlstd{(}\hlkwc{.sigma} \hlstd{=} \hlkwd{expGrid}\hlstd{(}\hlopt{-}\hlnum{10}\hlstd{,} \hlopt{-}\hlnum{6}\hlstd{,}
+    \hlnum{1}\hlstd{,} \hlnum{2}\hlstd{),} \hlkwc{.C} \hlstd{=} \hlkwd{c}\hlstd{(}\hlnum{0.5}\hlstd{,} \hlnum{1}\hlstd{,} \hlnum{2}\hlstd{,} \hlnum{4}\hlstd{,} \hlnum{8}\hlstd{,} \hlnum{16}\hlstd{,} \hlnum{32}\hlstd{))}
+\hlstd{model} \hlkwb{<-} \hlkwd{train}\hlstd{(dataset}\hlopt{$}\hlstd{x.train, dataset}\hlopt{$}\hlstd{y.train, method,}
+    \hlkwc{tuneGrid} \hlstd{= tune.grid,} \hlkwc{trControl} \hlstd{= dataset}\hlopt{$}\hlstd{trControl,}
+    \hlstd{)}
+\hlkwd{saveRDS}\hlstd{(model,} \hlkwc{file} \hlstd{=} \hlkwd{paste}\hlstd{(method,} \hlstr{".rds"}\hlstd{,} \hlkwc{sep} \hlstd{=} \hlstr{""}\hlstd{))}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+We determine if our hyper-parameter search needs to be altered. If the hyper-parameters scanned lead you to what looks like a global minimum then you can stop scanning the space of hyper-parameters, otherwise you need to adjust the grid and retrain your model.
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{model} \hlkwb{<-} \hlkwd{readRDS}\hlstd{(}\hlstr{"svmRadial.rds"}\hlstd{)}
+\hlkwd{plot}\hlstd{(model,} \hlkwc{metric} \hlstd{=} \hlstr{"RMSE"}\hlstd{)}
+\end{alltt}
+\end{kframe}\begin{figure}[]
+
+
+{\centering \includegraphics[width=8cm]{figure/unnamed-chunk-15} 
+
+}
+
+\caption[CV RMSE over the sigma and cost hyperparameters for the SVM]{CV RMSE over the sigma and cost hyperparameters for the SVM\label{fig:unnamed-chunk-15}}
+\end{figure}
+
+
+\end{knitrout}
+
+\section{Model Evaluation}
+
+Once the SVM model is trained, the cross validated metrics for the optimised hyper-parameters become visible:
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlkwd{print}\hlstd{(}\hlkwd{RMSE_CV}\hlstd{(model,} \hlkwc{digits} \hlstd{=} \hlnum{3}\hlstd{))}
+\end{alltt}
+\begin{verbatim}
+## [1] 0.61
+\end{verbatim}
+\begin{alltt}
+\hlkwd{print}\hlstd{(}\hlkwd{Rsquared_CV}\hlstd{(model,} \hlkwc{digits} \hlstd{=} \hlnum{3}\hlstd{))}
+\end{alltt}
+\begin{verbatim}
+## [1] 0.8911
+\end{verbatim}
+\end{kframe}
+\end{knitrout}
+
+On the basis of the soundness of the obtained models, assessed through the value of the cross-validated metrics, 
+we proceed to predict the values for the external (hold-out) set:
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{holdout.predictions} \hlkwb{<-} \hlkwd{as.vector}\hlstd{(}\hlkwd{predict}\hlstd{(model}\hlopt{$}\hlstd{finalModel,}
+    \hlkwc{newdata} \hlstd{= dataset}\hlopt{$}\hlstd{x.holdout))}
+\end{alltt}
+\end{kframe}
+\end{knitrout}
+
+To visualize the correlation between predicted and observed values, we use the \texttt{CorrelationPlot} function:
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlkwd{CorrelationPlot}\hlstd{(}\hlkwc{pred} \hlstd{= holdout.predictions,} \hlkwc{obs} \hlstd{= dataset}\hlopt{$}\hlstd{y.holdout,}
+    \hlkwc{PointSize} \hlstd{=} \hlnum{3}\hlstd{,} \hlkwc{ColMargin} \hlstd{=} \hlstr{"blue"}\hlstd{,} \hlkwc{TitleSize} \hlstd{=} \hlnum{26}\hlstd{,}
+    \hlkwc{XAxisSize} \hlstd{=} \hlnum{20}\hlstd{,} \hlkwc{YAxisSize} \hlstd{=} \hlnum{20}\hlstd{,} \hlkwc{TitleAxesSize} \hlstd{=} \hlnum{24}\hlstd{,}
+    \hlkwc{margin} \hlstd{=} \hlnum{2}\hlstd{,} \hlkwc{PointColor} \hlstd{=} \hlstr{"black"}\hlstd{,} \hlkwc{PointShape} \hlstd{=} \hlnum{16}\hlstd{,}
+    \hlkwc{MarginWidth} \hlstd{=} \hlnum{1}\hlstd{,} \hlkwc{AngleLab} \hlstd{=} \hlnum{0}\hlstd{,} \hlkwc{xlab} \hlstd{=} \hlstr{"Observed"}\hlstd{,}
+    \hlkwc{ylab} \hlstd{=} \hlstr{"Predicted"}\hlstd{)}
+\end{alltt}
+\end{kframe}\begin{figure}[]
+
+
+{\centering \includegraphics[width=8cm]{figure/unnamed-chunk-19} 
+
+}
+
+\caption[Observed vs Predicted]{Observed vs Predicted\label{fig:unnamed-chunk-19}}
+\end{figure}
+
+
+\end{knitrout}
+
+\section{Error Variance Estimation}
+In the following section, the \texttt{eve} package is invoked to train an error variance model.
+
+The trained caret model in used by the \texttt{eve} package to train an error variance model. This model assumes a Guassian distribution on the errors made by the support vector machine. The 
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{eve} \hlkwb{<-} \hlkwd{BuildCaretEVEstimator}\hlstd{(}\hlkwc{x} \hlstd{= dataset}\hlopt{$}\hlstd{x.train,} \hlkwc{model} \hlstd{= model,}
+    \hlkwc{Nmax} \hlstd{=} \hlnum{20}\hlstd{,} \hlkwc{cores} \hlstd{=} \hlnum{1}\hlstd{)}
+
+\hlstd{sigmas} \hlkwb{<-} \hlkwd{PredictSigmas}\hlstd{(}\hlkwc{x} \hlstd{= dataset}\hlopt{$}\hlstd{x.holdout,} \hlkwc{estimator} \hlstd{= eve)}\hlopt{$}\hlstd{sigmas}
+\hlstd{errors} \hlkwb{<-} \hlstd{holdout.predictions} \hlopt{-} \hlstd{dataset}\hlopt{$}\hlstd{y.holdout}
+
+\hlkwd{plot}\hlstd{(errors, sigmas)}
+\end{alltt}
+\end{kframe}\begin{figure}[]
+
+
+{\centering \includegraphics[width=8cm]{figure/unnamed-chunk-20} 
+
+}
+
+\caption[Estimate of the standard deviation (sigma) plotted against the actual error for molecules in the holdout set]{Estimate of the standard deviation (sigma) plotted against the actual error for molecules in the holdout set\label{fig:unnamed-chunk-20}}
+\end{figure}
+
+
+\end{knitrout}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{i} \hlkwb{<-} \hlnum{100}
+\hlstd{prediction} \hlkwb{<-} \hlstd{holdout.predictions[i]}
+\hlstd{observation} \hlkwb{<-} \hlstd{dataset}\hlopt{$}\hlstd{y.holdout[i]}
+\hlstd{sigma} \hlkwb{<-} \hlstd{sigmas[}\hlnum{100}\hlstd{]}
+\hlstd{x} \hlkwb{<-} \hlkwd{seq}\hlstd{(prediction} \hlopt{-} \hlnum{5} \hlopt{*} \hlstd{sigma, prediction} \hlopt{+} \hlnum{5} \hlopt{*} \hlstd{sigma,}
+    \hlkwc{length} \hlstd{=} \hlnum{1000}\hlstd{)}
+\hlstd{y} \hlkwb{<-} \hlkwd{dnorm}\hlstd{(x,} \hlkwc{mean} \hlstd{= prediction,} \hlkwc{sd} \hlstd{= sigma)}
+\hlkwd{plot}\hlstd{(x, y,} \hlkwc{type} \hlstd{=} \hlstr{"l"}\hlstd{,} \hlkwc{lwd} \hlstd{=} \hlnum{1}\hlstd{)}
+\hlkwd{abline}\hlstd{(}\hlkwc{v} \hlstd{= prediction} \hlopt{-} \hlstd{sigma)}
+\hlkwd{abline}\hlstd{(}\hlkwc{v} \hlstd{= prediction} \hlopt{+} \hlstd{sigma)}
+\hlkwd{abline}\hlstd{(}\hlkwc{v} \hlstd{= prediction} \hlopt{-} \hlnum{2} \hlopt{*} \hlstd{sigma)}
+\hlkwd{abline}\hlstd{(}\hlkwc{v} \hlstd{= prediction} \hlopt{+} \hlnum{2} \hlopt{*} \hlstd{sigma)}
+\hlkwd{abline}\hlstd{(}\hlkwc{v} \hlstd{= prediction,} \hlkwc{col} \hlstd{=} \hlstr{"red"}\hlstd{)}
+\hlkwd{abline}\hlstd{(}\hlkwc{v} \hlstd{= observation,} \hlkwc{col} \hlstd{=} \hlstr{"green"}\hlstd{)}
+\end{alltt}
+\end{kframe}\begin{figure}[]
+
+
+{\centering \includegraphics[width=8cm]{figure/unnamed-chunk-21} 
+
+}
+
+\caption[Prediction for molecule 100 of the holdout set (red)]{Prediction for molecule 100 of the holdout set (red). Distribution of possible observed values with black lines denoting 1 and 2 sigma. Observation (green).\label{fig:unnamed-chunk-21}}
+\end{figure}
+
+
+\end{knitrout}
+
+\section{External Predictions}
+
+One of the main attractions of this package is that it makes standardising and making predictions on new molecules a simple task. It is essential to ensure that the same standardisation options and descriptor types are used when the model is applied to make predictions for new molecules.
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlstd{test_structures_file} \hlkwb{<-} \hlkwd{system.file}\hlstd{(}\hlstr{"test_structures"}\hlstd{,}
+    \hlstr{"structures_10.sdf"}\hlstd{,} \hlkwc{package} \hlstd{=} \hlstr{"camb"}\hlstd{)}
+\hlstd{predictions} \hlkwb{<-} \hlkwd{PredictExternal}\hlstd{(test_structures_file,}
+    \hlstd{std.options, descriptor.types, dataset, model)}
+\end{alltt}
+\begin{verbatim}
+## [1] "Standardising Structures: Reading SDF (R)"
+## [1] "Generating Descriptors"
+\end{verbatim}
+\begin{alltt}
+\hlkwd{print}\hlstd{(predictions)}
+\end{alltt}
+\begin{verbatim}
+##         id prediction
+## 1  B000088    -1.9523
+## 2  B000139    -2.3624
+## 3  B000236    -7.4301
+## 4  B000310    -4.9088
+## 5  B000728    -2.8525
+## 6  B000785    -2.5881
+## 7  B000821    -2.1716
+## 8  B000826    -3.1698
+## 9  B001153     0.3744
+## 10 B001156    -1.5038
+\end{verbatim}
+\end{kframe}
+\end{knitrout}
+
+\printbibliography
+
+\end{document}
