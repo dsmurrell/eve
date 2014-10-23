@@ -114,8 +114,21 @@ FitSigma <- function(x) {
 }
 
 # for each estimator function at a specific number of considered neighbours (1 column in the estimator matrix)
-# sort the estimator by the 
 # find two splines
+# each data point has an estimator value and an absolute error
+# order the data points by estimator value
+# define a window width at 1/5 the number of data points as are in the training set
+# half that with (hwidth) is 1/10 the number of data point as are in the training set
+# for each data point inside the whole window use the absolute errors to estimate the variance for that index
+# make a mapping from an estimator value to an index into the sorted estimators
+# make a mapping from the index to the window sigma
+# now, when we obtain an estimator value for a new data point, the index can be found 
+# using the first mapping and and consequently the variance estimate of the window using the second mapping
+
+# indexes are used instead of using a fixed size window over the estimator space because
+# the distribution of the space could vary and outliers might affect the window construction algorithm
+# this method was proven to work better than using the range of the dataset and dividing up that space into windows
+
 ConvertToSigmaSplines <- function(x, errors, spar = 0.8, p = FALSE) {
   splines <- list()
   order <- order(x, decreasing=TRUE)
@@ -151,7 +164,7 @@ GetSigmaSplineList <- function(m, errors) {
   for(i in 1:ncol(m)) {
     sl[[i]] <- ConvertToSigmaSplines(m[,i], errors, i==4)
   }
-  sl
+  sl # return the spline list
 } 
 
 # find the sigma estimate from the two sigma splines given the original estimator values 
@@ -203,7 +216,7 @@ GreedOpt <- function(X, Y, optFunc = CEC, iter = 100L) {
   return(l)
 }
 
-# Application of the greed ensemble to select sigma matrix weights that moximise the CEC function 
+# Application of the greedy ensemble to select sigma matrix weights that maximises the CEC function 
 GetWeights <- function(m, errors, sl, cores = 1, optFunc = CEC) {
   sigma.matrix <- do.call(cbind, mclapply(1:ncol(m), GetSigmasFromSplines, m, sl, mc.cores=cores))
   l <- GreedOpt(sigma.matrix, errors, optFunc, iter=50)
@@ -327,11 +340,6 @@ CreateNewEstimatorMatrix <- function(Nmax, dm, errors, obs, preds) {
   m[,-c(2,3)]
 }
 
-GetNewSigmas <- function(nm, sl, weights, cores=1) {
-  sigma.matrix <- do.call(cbind, mclapply(1:ncol(nm), GetSigmasFromSplines, nm, sl, mc.cores=cores))
-  apply(sweep(sigma.matrix,2,weights,`*`), 1, sum)
-}
-
 GetNewSigmaMatrix <- function(nm, sl, cores=1) {
   do.call(cbind, mclapply(1:ncol(nm), GetSigmasFromSplines, nm, sl, mc.cores=cores))
 }
@@ -342,7 +350,7 @@ GetNewSigmas <- function(sigma.matrix, weights) {
 
 #' Predict the error variance of new data points given the dataset and a trained estimator
 #' 
-#' Given new datapoints, \code{PredictSigmas} used a trained error variance estimator to predict the
+#' Given new datapoints, \code{PredictSigmas} uses a trained error variance estimator to predict the
 #' sigmas of the error distribution for those datapoints. It is important that the descriptors are 
 #' transformed in exactly the same way as the descriptors were transformed before model training.
 #' 

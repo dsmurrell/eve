@@ -193,7 +193,7 @@ get_error_model <- function(model,dataset,method="svm",tune.grid=tune.grid){
   return(error_model)
 }
 
-error_model <- get_error_model(model, dataset,method="svmRadial", tune.grid=tune.grid) 
+error_model <- get_error_model(model, dataset, method="svmRadial", tune.grid=tune.grid) 
 
 saveRDS(error_model, file=paste(method,"_error_model.rds",sep=""))
 
