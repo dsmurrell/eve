@@ -158,14 +158,14 @@ for(lo in 1:NF) {
   print("GP")
   registerDoMC(cores=15)
   tune.grid <- expand.grid(.sigma = expGrid(-10, -6, 1, 2))
-  gp <- train(dataset$x.train, dataset$y.train, method = "gaussprRadial", trControl = trControl, type = "regression", variance.model=TRUE, tuneGrid = tune.grid)
+  gp <- train(nx, nobs, method = "gaussprRadial", trControl = trControl, type = "regression", variance.model=TRUE, tuneGrid = tune.grid)
   saveRDS(gp, file=paste("gp_", lo, ".rds",sep=""))
   
   # train the RF models
   print("RF")
   registerDoMC(cores=15)
   tune.grid <- expand.grid(.mtry = floor(seq(10, 140, length.out = 15)))
-  rf <- train(dataset$x.train, dataset$y.train, method = "rf", trControl = trControl, importance=TRUE, tuneGrid = tune.grid)
+  rf <- train(nx, nobs, method = "rf", trControl = trControl, importance=TRUE, tuneGrid = tune.grid)
   saveRDS(rf, file=paste("rf_", lo, ".rds",sep=""))
 }
 
