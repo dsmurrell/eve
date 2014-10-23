@@ -1,0 +1,307 @@
+\documentclass[twoside,a4wide,12pt]{article}
+\usepackage[left=2.5cm,top=2cm,right=2cm,bottom=2.5cm,bindingoffset=0.5cm]{geometry}
+\usepackage{amsmath} 
+\usepackage[affil-it]{authblk}
+\usepackage{hyperref}
+\usepackage{fullpage}
+\usepackage{pdflscape}
+\usepackage[backend=bibtex,sorting=none,style=ieee]{biblatex}
+\usepackage{setspace}
+\usepackage{inconsolata}
+\bibliography{biblio}
+
+
+\title{Error variance estimation with 'eve'\\
+{\bf E}rror {\bf V}ariance {\bf E}stimator\\
+}
+
+
+\author[1]{\rm Daniel S. Murrell\thanks{dsmurrell@gmail.com}}
+\author[2]{\rm Isidro Cortes-Ciriano\thanks{isidrolauscher@gmail.com}} 
+\author[1]{\rm Andreas Bender}
+\author[2]{\rm Therese E. Malliavin}
+\author[1]{\rm Robert C. Glen}
+
+\affil[1]{Unilever Centre for Molecular Science Informatics, Department of Chemistry, University of Cambridge, Cambridge, United Kingdom.}
+\affil[2]{Unite de Bioinformatique Structurale, Institut Pasteur and CNRS UMR 3825, Structural Biology and Chemistry Department, 25-28, rue Dr. Roux, 75 724 Paris, France.}
+
+
+\setlength{\parindent}{0pt}
+
+
+
+\setlength{\parskip}{\baselineskip}%
+\begin{document}
+
+\maketitle
+\onehalfspacing
+
+<<echo=FALSE,results='hide'>>=
+options(width=60)
+suppressWarnings(library(doMC,quietly=TRUE,warn.conflicts=FALSE))
+@
+
+\maketitle
+
+In the following sections, we demonstrate the utility of the \texttt{eve} \cite{eve} package by presenting a pipeline which trains a support vector machine to predict aqueous solubility using 2D molecular descriptors calculated by the PaDEL-Descriptor package. \texttt{eve} is then used to train an error variance model to predict the variance in the errors of new molecules.
+
+Firstly, the package is loaded and the working directory set:
+<<echo=FALSE,results='hide',warning=FALSE,message=FALSE>>=
+library(camb)
+library(eve)
+setwd('~/Dropbox/projects/eve/examples/QSPR/LogS')
+setwd('/Users/icortes/Desktop/eve/eve/examples/QSPR/LogS')
+@
+<<echo=TRUE,results='hide',warning=FALSE,message=FALSE,eval=FALSE>>=
+library(camb)
+library(eve)
+# setwd('path_to_working_directory')
+@
+
+\section{Compounds}
+
+\subsection{Reading and Preprocessing}
+The compounds are read in and standardised. Internally, Indigo's C API \cite{Indigo}, incorporated into the \texttt{camb} package, is use to perform this task.
+Molecules are represented with implicit hydrogens, dearomatized, and passed through the InChI format to ensure that tautomers are represented by the same SMILES.
+
+The \texttt{StandardiseMolecules} function allows representation of the molecular structures in a similarly processed form.
+The arguments of this function allow control over the maximum number of (i) fluorines, (ii) chlorines,
+(iii) bromines, and (iv) iodines the molecules can contain in order to be retained for training.
+Inorgnaic molecules (those containing atoms not in \{H, C, N, O, P, S, F, Cl, Br, I\}) are removed if the argument \texttt{remove.inorganic} is set to \texttt{TRUE}. This is the function's default behaviour.
+The upper and lower limits for molecular mass can be set with the arguments \texttt{min.mass.limit} and \texttt{max.mass.limit}.
+The name of the file containing the chemical structures is provided by the argument \texttt{structures.file}.
+<<echo=TRUE,results='hide',warning=FALSE,message=FALSE>>=
+std.options <- StandardiseMolecules(structures.file="solubility_2007_ref2.sdf", 
+                                                standardised.file="standardised.sdf", 
+                                                removed.file="removed.sdf",
+                                                properties.file = "properties.csv",
+                                                remove.inorganic=TRUE, 
+                                                fluorine.limit=3, 
+                                                chlorine.limit=3, 
+                                                bromine.limit=3, 
+                                                iodine.limit=3, 
+                                                min.mass.limit=20, 
+                                                max.mass.limit=900)
+@
+Molecules that Indigo manages to parse and that pass the filters are written to the file indicated by the \texttt{standardised.file} argument once they have been through the standardisation procedure. Molecules that were discarded are written to the file indicated by the \texttt{removed.file} argument. The molecule name and molecular properties specified in the structure file are written to the file indicated in the argument \texttt{properties.file} which is in CSV format. A column \texttt{kept} is added which indicates which molecules were deleted (0) or kept (1).
+
+\section{Target Visualisation}
+\texttt{camb} provides a function to visualise the density of the target variable. Visualising the distribution of the target variable gives can give a measure of how accurate a trained model is. The narrower the distribution the lower the RMSE should for the model to exhibit predictive power.
+
+<<echo=TRUE, fig.align='center',fig.cap="LogS Target Distribution",out.width='8cm',results='hide',warning=FALSE,message=FALSE,eval=TRUE>>=
+properties <- read.table("properties.csv", header=TRUE, sep="\t")
+properties <- properties[properties$Kept==1, ]
+head(properties)
+targets <- data.frame(Name = properties$NAME, target = properties$EXPT)
+p <- DensityResponse(targets$target) + xlab("LogS Target Distribution")
+p
+@
+
+\subsection{PaDEL Descriptors}
+One and two-dimensional descriptors can be calculated with the function \texttt{GeneratePadelDescriptors} provided by the PaDEL-Descriptor \cite{padel} Java library built into the \texttt{camb} package:
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=FALSE>>=
+descriptor.types <- c("2D") 
+descriptors <- GeneratePadelDescriptors(standardised.file = "standardised.sdf", types=descriptor.types, threads = 1)
+descriptors <- RemoveStandardisedPrefix(descriptors)
+saveRDS(descriptors, file="descriptors.rds")
+@
+<<echo=FALSE>>=
+descriptors <- readRDS("descriptors.rds")
+@
+
+\section{Statistical Pre-processing}
+The descriptors and the target values are then merged by name into a single \textit{data.frame}. We check that the number of rows of the merged and original \textit{data.frames} are the same. We then split the \textit{data.frame} into \textit{ids}, \textit{x} and \textit{y} where \textit{ids} are the molecule names, \textit{x} is the block of descriptor values and \textit{y} is the target values.  
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=TRUE>>=
+all <- merge(x=targets, y=descriptors, by="Name")
+ids <- all$Name
+x <- all[3:ncol(all)]
+y <- all$target
+@
+
+Sometimes, some descriptors are not calculated for all molecules, giving a "NA" or "Inf" as the descriptor value. 
+Instead of removing that descriptor for all molecules, the missing descriptor values can be imputed from the corresponding descriptor values in the molecules that are closest to the molecule with the missing information.
+"Inf" descriptor values are first converted to "NA".
+For the imputation of missing descriptor values, the R package  \texttt{impute} is required.
+Depending on the R version, it can be accessed from either \texttt{CRAN} or \texttt{Bioconductor}.
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,echo=FALSE,eval=TRUE>>=
+x.finite <- ReplaceInfinitesWithNA(x)
+x.imputed <- ImputeFeatures(x.finite)
+@
+
+The dataset is randomly split into a training set (80\%) used for training and a holdout set (20\%) which used to assess the predictive ability of the models on molecules drawn from the same distribution as the training set. Unhelpful descriptos are removed: (i) those with a variance close to zero (near-zero variance), and (ii) those highly correlated with one another:
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=TRUE>>=
+dataset <- SplitSet(ids, x.imputed, y, percentage=20)
+dataset <- RemoveNearZeroVarianceFeatures(dataset, frequencyCutoff=30)
+dataset <- RemoveHighlyCorrelatedFeatures(dataset, correlationCutoff=0.95)
+@
+
+The descriptors are converted to z-scores by centering them to have a mean of zero and scaling them to have unit variance:
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=TRUE>>=
+dataset <- PreProcess(dataset)
+@
+
+Five fold cross-validation (CV) is be used to optimize the hyperparameters of the support vector machine:
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=TRUE>>=
+dataset <- GetCVTrainControl(dataset, folds=5, savePredictions=TRUE)
+saveRDS(dataset, file="dataset_logS_preprocessed.rds")
+@
+
+\section{Model Training}
+
+In the following section we present the different steps required to train a QSPR model with \texttt{camb}. It should be noted that the above steps can be run locally on a low powered computer such as a laptop and the preprocessed dataset saved to disk. This dataset can then be copied to a high powered machine or a farm with multiple cores for model training and the resulting models saved back to the local machine. Pro tip: Dropbox can be used to sync this proceedure so that manual transfer is not required.
+
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE>>=
+dataset <- readRDS("dataset_logS_preprocessed.rds")
+# register the number of cores to use in training
+library(doMC)
+registerDoMC(cores=1)
+@
+
+\subsection{Support Vector Machines (SVM)}
+A SVM using a radial basis function kernel is trained \cite{svmreview}.
+A base 2 exponential grid is used to optimize over the hyperparameters. The \texttt{train} function from the \texttt{caret} package is used directly for model training.
+
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=FALSE>>=
+library(kernlab)
+method <- "svmRadial"
+tune.grid <- expand.grid(.sigma = expGrid(-10, -6, 1, 2), .C = c(0.5, 1, 2, 4, 8, 16, 32))
+model <- train(dataset$x.train, dataset$y.train, method, 
+               tuneGrid=tune.grid, trControl=dataset$trControl,
+               savePredictions=T)
+saveRDS(model, file=paste(method,".rds",sep=""))
+@
+
+We determine if our hyper-parameter search needs to be altered. If the hyper-parameters scanned lead you to what looks like a global minimum then you can stop scanning the space of hyper-parameters, otherwise you need to adjust the grid and retrain your model.
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,fig.align='center',fig.cap="CV RMSE over the sigma and cost hyperparameters for the SVM",out.width='8cm'>>=
+model <- readRDS("svmRadial.rds")
+plot(model, metric = "RMSE")
+@
+
+\section{Conformal Prediction}
+
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,eval=FALSE>>=
+
+## Isidro Cortés
+
+get_error_model <- function(model,dataset,method="svm",tune.grid=tune.grid){
+  # this works for SVM, To make it general, one has to check the following line:
+  predObsCV <- model$pred[which(model$pred$sigma == model$bestTune$sigma & model$pred$C == model$bestTune$C), 1:3]
+  predObsCV <- predObsCV[order(predObsCV$rowIndex),]
+  error_model <- train(dataset$x.train, abs(predObsCV$pred - predObsCV$obs), method, 
+               tuneGrid=tune.grid, trControl=dataset$trControl,
+               savePredictions=T)
+  return(error_model)
+}
+
+error_model <- get_error_model(model, dataset, method="svmRadial", tune.grid=tune.grid) 
+
+saveRDS(error_model, file=paste(method,"_error_model.rds",sep=""))
+
+
+h = function(modell){
+  model$pred[which(modell$pred$sigma == modell$bestTune$sigma & modell$pred$C == modell$bestTune$C), 1:3]
+}
+
+Conformity <- function(model, error_model,confidence=0.80,data.new){
+  if (confidence > 1 || confidence < 0)
+     stop("confidence must be between 0 and 1")
+  if (is.null(data.new))
+    stop("new datapoints are required as input")
+  
+  print("Calculating alphas..")
+  cat('\n')
+  predObsCV <- model$pred[which(model$pred$sigma == model$bestTune$sigma & model$pred$C == model$bestTune$C), 1:3]
+  predObsCV <- predObsCV[order(predObsCV$rowIndex),]
+  predObsCV_error <- error_model$pred[which(error_model$pred$sigma == error_model$bestTune$sigma & error_model$pred$C == error_model$bestTune$C), 1:3]
+  predObsCV_error <- predObsCV_error[order(predObsCV_error$rowIndex),]
+  
+  conformityA <- function(obs,pred,error){
+  alpha <- abs(obs-pred) / error
+  return(sort(alpha))
+  }
+
+  alphas <- conformityA(predObsCV$obs,predObsCV$pred,predObsCV_error$pred)
+  
+  print("Predicting for the new data..")
+  cat('\n')
+  pred <- as.vector(predict(model$finalModel, newdata = data.new))
+  pred_error <- as.vector(predict(error_model$finalModel, newdata = data.new)) 
+  
+  intervals <- ((alphas[length(alphas)*confidence]) * pred_error) 
+  return(intervals)
+}  
+
+confi_intervals <- Conformity(model, error_model, confidence=0.80,data.new=dataset$x.holdout)
+@
+\section{Model Evaluation}
+
+Once the SVM model is trained, the cross validated metrics for the optimised hyper-parameters become visible:
+
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE>>=
+print(RMSE_CV(model, digits=3))
+print(Rsquared_CV(model,digits=3))
+@
+
+On the basis of the soundness of the obtained models, assessed through the value of the cross-validated metrics, 
+we proceed to predict the values for the external (hold-out) set:
+<<echo=FALSE,results='hide',warning=FALSE,message=FALSE>>=
+library(kernlab)
+@
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,warning=FALSE,message=FALSE>>=
+holdout.predictions <- as.vector(predict(model$finalModel, newdata = dataset$x.holdout))
+@
+
+To visualize the correlation between predicted and observed values, we use the \texttt{CorrelationPlot} function:
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,fig.align='center',fig.cap="Observed vs Predicted",out.width='8cm'>>=
+CorrelationPlot(pred=holdout.predictions,obs=dataset$y.holdout,PointSize=3,ColMargin='blue',TitleSize=26,XAxisSize=20,YAxisSize=20,TitleAxesSize=24,margin=2,PointColor="black",PointShape=16,MarginWidth=1,AngleLab=0,xlab="Observed",ylab="Predicted")
+@
+
+\section{Error Variance Estimation}
+In the following section, the \texttt{eve} package is invoked to train an error variance model.
+
+The trained caret model in used by the \texttt{eve} package to train an error variance model. This model assumes a Guassian distribution on the errors made by the support vector machine. The 
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,fig.align='center',fig.cap="Estimate of the standard deviation (sigma) plotted against the actual error for molecules in the holdout set",out.width='8cm'>>=
+eve <- BuildCaretEVEstimator(x=dataset$x.train, model=model, Nmax=20, cores=1)
+
+sigmas <- PredictSigmas(x=dataset$x.holdout, estimator=eve)$sigmas
+errors <- holdout.predictions - dataset$y.holdout
+
+# final method comparison
+CEC(abs(errors), sigmas)
+CEC(abs(errors), confi_intervals)
+
+# using spearman rank correlation insted to compare methods (not sure if this is the right way to compare
+# or if there is a good reason the other authors chose CEC)
+cor(abs(errors), sigmas, method="spearman")
+cor(abs(errors), confi_intervals, method="spearman")
+@
+
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,fig.align='center',fig.cap="Prediction for molecule 100 of the holdout set (red). Distribution of possible observed values with black lines denoting 1 and 2 sigma. Observation (green).",out.width='8cm'>>=
+i <- 100
+prediction <- holdout.predictions[i]
+observation <- dataset$y.holdout[i]
+sigma <- sigmas[100]
+x <- seq(prediction - 5 * sigma, prediction + 5 * sigma, length=1000) 
+y <- dnorm(x,mean=prediction, sd=sigma)
+plot(x,y, type="l", lwd=1)
+abline(v=prediction - sigma)
+abline(v=prediction + sigma)
+abline(v=prediction - 2 * sigma)
+abline(v=prediction + 2 * sigma)
+abline(v=prediction, col="red")
+abline(v=observation, col="green")
+@
+
+\section{External Predictions}
+
+One of the main attractions of this package is that it makes standardising and making predictions on new molecules a simple task. It is essential to ensure that the same standardisation options and descriptor types are used when the model is applied to make predictions for new molecules.
+
+<<highlight=TRUE,tidy.opts=list(width.cutoff=50),tidy=TRUE,warning=FALSE>>=
+test_structures_file <- system.file("test_structures", "structures_10.sdf", package = "camb")
+predictions <- PredictExternal(test_structures_file, std.options, descriptor.types, dataset, model)
+print(predictions)
+@
+
+\printbibliography
+
+\end{document}

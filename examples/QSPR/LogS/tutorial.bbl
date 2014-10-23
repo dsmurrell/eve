@@ -1,0 +1,113 @@
+% $ biblatex auxiliary file $
+% $ biblatex version 1.5 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\entry{Indigo}{article}{}
+  \name{author}{1}{}{%
+    {{}%
+     {{Indigo}}{I.}%
+     {}{}%
+     {}{}%
+     {}{}}%
+  }
+  \list{organization}{1}{%
+    {GGA Software Services}%
+  }
+  \strng{namehash}{I1}
+  \strng{fullhash}{I1}
+  \field{title}{Indigo Cheminformatics Library}
+  \verb{url}
+  \verb http://ggasoftware.com/opensource/indigo/
+  \endverb
+  \list{location}{1}{%
+    {Cambridge MA, USA}%
+  }
+  \field{year}{2013}
+\endentry
+
+\entry{padel}{article}{}
+  \name{author}{1}{}{%
+    {{}%
+     {Yap}{Y.}%
+     {Chun~Wei}{C.~W.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{YCW1}
+  \strng{fullhash}{YCW1}
+  \field{pages}{1466\bibrangedash 1474}
+  \field{title}{{PaDEL-descriptor: an open source software to calculate
+  molecular descriptors and fingerprints.}}
+  \verb{url}
+  \verb http://www.ncbi.nlm.nih.gov/pubmed/21425294
+  \endverb
+  \field{volume}{32}
+  \field{journaltitle}{J. Comput. Chem.}
+  \field{year}{2011}
+\endentry
+
+\entry{svmreview}{article}{}
+  \name{author}{5}{}{%
+    {{}%
+     {Ben-Hur}{B.-H.}%
+     {Asa}{A.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Ong}{O.}%
+     {Cheng~Soon}{C.~S.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Sonnenburg}{S.}%
+     {Sören}{S.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Schölkopf}{S.}%
+     {Bernhard}{B.}%
+     {}{}%
+     {}{}}%
+    {{}%
+     {Rätsch}{R.}%
+     {Gunnar}{G.}%
+     {}{}%
+     {}{}}%
+  }
+  \name{editor}{1}{}{%
+    {{}%
+     {Lewitter}{L.}%
+     {Fran}{F.}%
+     {}{}%
+     {}{}}%
+  }
+  \strng{namehash}{BHAOCSSSSBRG1}
+  \strng{fullhash}{BHAOCSSSSBRG1}
+  \field{number}{10}
+  \field{pages}{e1000173}
+  \field{title}{{Support Vector Machines and Kernels for Computational
+  Biology}}
+  \field{volume}{4}
+  \field{journaltitle}{{PLoS} Computational Biology}
+  \field{month}{10}
+  \field{year}{2008}
+\endentry
+
+\lossort
+\endlossort
+
+\endinput

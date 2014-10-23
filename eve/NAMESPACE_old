@@ -1,0 +1,13 @@
+# Export all functions
+# exportPattern(".")
+
+# Export specific functions
+export(CEC)
+export(BuildEVEstimator)
+export(BuildCaretEVEstimator)
+export(PredictSigmas)
+
+# Import all packages listed as Imports or Depends
+import(
+  caret
+)
