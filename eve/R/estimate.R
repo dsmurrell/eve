@@ -275,10 +275,10 @@ BuildCaretEVEstimator <- function(x, model, Nmax = 20, cores=1, optFunc = CEC) {
   best <- best[order,]
   obs <- best$obs
   preds <- best$pred
-  fold.strings <- unique(best$Resample)
+  foldStrings <- unique(best$Resample)
   folds <- list()
-  for(fold in 1:length(fold.strings)) {
-    folds[[fold]] <- which(best$Resample == fold.strings[fold])
+  for(fold in 1:length(foldStrings)) {
+    folds[[fold]] <- which(best$Resample == foldStrings[fold])
   }
   BuildEVEstimator(x, folds, obs, preds, Nmax, cores, optFunc)
 }
@@ -371,5 +371,24 @@ PredictSigmas <- function(x, estimator) {
   prediction$sigmas <- sigmas
   prediction
 }
+
+#' Predict the error variance of new data points given the dataset and a trained estimator (can use multiple cores)
+#' 
+#' Given new datapoints, \code{PredictSigmasMC} uses a trained error variance estimator to predict the
+#' sigmas of the error distribution for those datapoints. It is important that the descriptors are 
+#' transformed in exactly the same way as the descriptors were transformed before model training.
+#' 
+#' @param x Descriptors of the new datapoints transformed in exactly the same way as they were during training
+#' @param estimator Trained estimator returned by either \code{\link{BuildEVEstimator}} or \code{\link{BuildCaretEVEstimator}}
+#' @export
+#' @return Predicted error variances for the new data points
+#' @author Daniel Murrell <dsmurrell@@gmail.com>
+PredictSigmasMC <- function(x, estimator, cores = 1) {
+  groups <- rep_len(x=1:cores, length.out=nrow(x))
+  groups <- groups[order(groups)]
+  do.call(rbind, mclapply(split(x, groups), PredictSigmas, estimator, mc.cores=cores))
+}
+
+
 
 
