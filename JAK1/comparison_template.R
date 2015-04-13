@@ -27,7 +27,7 @@ max.mass.limit=-1) #suggested
 properties <- read.table("properties.csv", header=TRUE, sep="\t") 
 properties <- properties[properties$Kept==1, ]
 head(properties)
-targets <- read.table(paste(name_dataset,".bio",sep=""),header=T)$pIC50
+targets <- read.table(paste(name_dataset,".bio",sep=""),header=T)$pki
 print(length(targets))
 
 descriptor.types <- c("2D")

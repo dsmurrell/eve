@@ -1,0 +1,25 @@
+#!/bin/bash
+
+perl -pi -e 's/\r/\n/g' ./F7/F7.txt
+perl -pi -e 's/\r/\n/g' ./IL4/IL4.txt
+perl -pi -e 's/\r/\n/g' ./JAK1/JAK1.txt
+perl -pi -e 's/\r/\n/g' ./MGLL/MGLL.txt
+perl -pi -e 's/\r/\n/g' ./MMP2/MMP2.txt
+#perl -pi -e 's/\r/\n/g' ./PRSS2/PRSS2.txt
+
+awk '{print $1}' ./F7/F7.txt > ./F7/F7.smi
+awk '{print $1}' ./IL4/IL4.txt > ./IL4/IL4.smi
+awk '{print $1}' ./JAK1/JAK1.txt > ./JAK1/JAK1.smi
+awk '{print $1}' ./MGLL/MGLL.txt > ./MGLL/MGLL.smi
+awk '{print $1}' ./MMP2/MMP2.txt >  ./MMP2/MMP2.smi
+#awk '{print $1}' ./PRSS2/PRSS2.txt > ./PRSS2/PRSS2.smi
+
+awk '{print $2}' ./F7/F7.txt > ./F7/F7.bio
+awk '{print $2}' ./IL4/IL4.txt > ./IL4/IL4.bio
+awk '{print $2}' ./JAK1/JAK1.txt > ./JAK1/JAK1.bio
+awk '{print $2}' ./MGLL/MGLL.txt > ./MGLL/MGLL.bio
+awk '{print $2}' ./MMP2/MMP2.txt >  ./MMP2/MMP2.bio
+#awk '{print $2}' ./PRSS2/PRSS2.txt > ./PRSS2/PRSS2.bio
+
+
+
