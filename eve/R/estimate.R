@@ -372,6 +372,13 @@ PredictSigmas <- function(x, estimator) {
   prediction
 }
 
+PredictOnlySigmas <- function(x, estimator) {
+  dm <- CreateNewDistanceMatrix(estimator$x, x)
+  nm <- CreateNewEstimatorMatrix(estimator$Nmax, dm, estimator$errors, estimator$obs, estimator$preds)
+  sigma.matrix <- GetNewSigmaMatrix(nm, estimator$sl)
+  GetNewSigmas(sigma.matrix, estimator$weights)
+}
+
 #' Predict the error variance of new data points given the dataset and a trained estimator (can use multiple cores)
 #' 
 #' Given new datapoints, \code{PredictSigmasMC} uses a trained error variance estimator to predict the
@@ -386,7 +393,7 @@ PredictSigmas <- function(x, estimator) {
 PredictSigmasMC <- function(x, estimator, cores = 1) {
   groups <- rep_len(x=1:cores, length.out=nrow(x))
   groups <- groups[order(groups)]
-  do.call(rbind, mclapply(split(x, groups), PredictSigmas, estimator, mc.cores=cores))
+  do.call(c, mclapply(split(x, groups), PredictOnlySigmas, estimator, mc.cores=cores))
 }
 
 
