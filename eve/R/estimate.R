@@ -391,9 +391,19 @@ PredictOnlySigmas <- function(x, estimator) {
 #' @return Predicted error variances for the new data points
 #' @author Daniel Murrell <dsmurrell@@gmail.com>
 PredictSigmasMC <- function(x, estimator, cores = 1) {
+  hack <- FALSE # this hack adds an extra molecule if there is only one and then removes one result at the end
+  # for some reason the code doesn't easily collapse to matricies of dimension 1 and this hack stops it from breaking at some small computational expense
+  if(nrow(x) == 1) {
+    x <- rbind(x,x)
+    hack <- TRUE
+  }
   groups <- rep_len(x=1:cores, length.out=nrow(x))
   groups <- groups[order(groups)]
-  do.call(c, mclapply(split(x, groups), PredictOnlySigmas, estimator, mc.cores=cores))
+  output <- do.call(c, mclapply(split(x, groups), PredictOnlySigmas, estimator, mc.cores=cores))
+  if(hack) {
+    output <- output[1]
+  }
+  output
 }
 
 
